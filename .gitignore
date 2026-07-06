@@ -20,6 +20,9 @@
 # production
 /build
 
+# app data (vector index — disposable, rebuild with `npm run reindex`)
+/.data/
+
 # misc
 .DS_Store
 *.pem
