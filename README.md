@@ -1,36 +1,56 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Second Brain
 
-## Getting Started
+A private journaling app with a locally hosted AI companion. Entries are plain
+markdown files on disk; chat runs against a local Ollama model with RAG over
+your own entries. Nothing leaves your machine.
 
-First, run the development server:
+## Requirements
+
+- Node.js 20+
+- [Ollama](https://ollama.com) with two models pulled:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+ollama pull qwen3:4b          # chat
+ollama pull nomic-embed-text  # embeddings
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Run
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+ollama serve   # if the Ollama app isn't already running
+npm install
+npm run dev    # http://localhost:3000
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+The app binds to `127.0.0.1` only. Ollama is only ever reached via the app on
+`localhost:11434` and must never be exposed beyond localhost.
 
-## Learn More
+## How it works
 
-To learn more about Next.js, take a look at the following resources:
+- **Entries** live in `~/SecondBrainJournal/` as `YYYY/MM/YYYY-MM-DD-HHmm.md`
+  with YAML frontmatter (`date`, `source`, `tags`). The folder is the source
+  of truth — edit it with any tool; a file watcher re-indexes changes within
+  seconds.
+- **Index** is an embedded LanceDB vector store in `.data/` (gitignored,
+  disposable). Rebuild any time with `npm run reindex`.
+- **Chat** (`/chat`) embeds your question, retrieves the most relevant
+  entries, and streams an answer from the local model with citations linking
+  back to the source entries.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Configuration
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+All values are env vars with defaults (see `src/lib/config.ts`):
 
-## Deploy on Vercel
+| Variable | Default |
+|---|---|
+| `JOURNAL_DIR` | `~/SecondBrainJournal` |
+| `OLLAMA_BASE_URL` | `http://localhost:11434` |
+| `CHAT_MODEL` | `qwen3:4b` |
+| `EMBED_MODEL` | `nomic-embed-text` |
+| `DATA_DIR` | `<app>/.data` |
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Scripts
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `npm run dev` — dev server (localhost only)
+- `npm test` — unit tests (Vitest)
+- `npm run reindex` — drop and rebuild the vector index from markdown
