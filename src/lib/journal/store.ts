@@ -125,6 +125,12 @@ export function listMarkdownFiles(dir: string): string[] {
   return results;
 }
 
+/** Read any markdown file in the journal folder as an entry (id = filename). */
+export function readEntryByPath(filePath: string): Entry | null {
+  if (!fs.existsSync(filePath)) return null;
+  return readEntryFile(path.basename(filePath, ".md"), filePath);
+}
+
 export function listEntries(): Entry[] {
   const { journalDir } = getConfig();
   return listMarkdownFiles(journalDir)
