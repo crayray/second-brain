@@ -138,6 +138,69 @@ All values are env vars with defaults (see `src/lib/config.ts`):
 - `npm run lint` — ESLint
 - `npm run reindex` — drop and rebuild the vector index from markdown
 
+## Testing
+
+`npm test` runs the unit suite (Vitest, `src/**/*.test.ts`): prompt assembly,
+`<think>` filtering, chunking, embeddings, the vector store, and journal CRUD.
+Ollama is mocked there, so the suite never exercises a real model — it cannot
+tell you whether chat still gives good answers.
+
+### Chat probe skill
+
+`.cursor/skills/test-journal-chat/` is a Cursor skill that covers the gap: it
+drives the real `/api/chat` endpoint against a live model and checks that
+answers are grounded in actual journal entries. Use it after changing the
+chat model, the system prompt, or retrieval.
+
+In Cursor, invoke the `test-journal-chat` skill and it will run the whole
+workflow. To run the scripts directly (the app and Ollama must be up):
+
+```bash
+node .cursor/skills/test-journal-chat/scripts/chat-probe.mts \
+  --label "baseline" \
+  --prompt "What have I been worried about lately?" \
+  --follow-up "Did I do anything to take my mind off it?"
+```
+
+Each `--prompt` starts a fresh conversation; each `--follow-up` continues the
+previous one with full history, matching how the UI behaves. Use `node`, not
+`npx tsx` — the scripts are `.mts` and rely on Node's native type stripping.
+
+The skill starts by reading your real entries from `/api/entries`, then
+generates 1-3 prompts a user would plausibly ask — including a *negative
+control*, a question the journal genuinely cannot answer. That one matters
+most: the correct response is admitting it doesn't know, so it catches the
+model inventing memories.
+
+The probe checks what can be measured mechanically, and reports per turn:
+
+| Measurement | What a change tells you |
+|---|---|
+| Time to citations | Embedding + vector search only; isolates the RAG path |
+| Time to first token | Includes qwen3's hidden reasoning, so it's long by design |
+| Total time, chars/sec | Full answer throughput |
+| Stream health | Citations arriving before tokens, missing `done`, `<think>` leaks, empty answers |
+
+It deliberately does **not** score answer quality — a fluent hallucination
+passes every mechanical check. Groundedness, citation accuracy, honesty, and
+tone are judged by whoever reads the output; the skill provides the rubric.
+
+Every run appends to `.cursor/skills/test-journal-chat/results/runs.jsonl`, so
+latency is comparable over time:
+
+```bash
+node .cursor/skills/test-journal-chat/scripts/compare-runs.mts --limit 5
+```
+
+Deltas are computed against the previous run of the same model, and anything
+over +30% is flagged as a regression. Note that `--model` on the probe is only
+a label for the log — the server reads `CHAT_MODEL` at launch, so comparing
+models means restarting the app (see [Models](#models)) and passing a matching
+label. Discard the first run after a restart; the model is cold.
+
+See `.cursor/skills/test-journal-chat/SKILL.md` for the prompt-writing rules
+and the quality rubric.
+
 ## Troubleshooting
 
 - **Chat returns a 502 / "model backend error"** — Ollama isn't running or
