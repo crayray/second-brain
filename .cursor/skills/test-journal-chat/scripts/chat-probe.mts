@@ -207,7 +207,10 @@ async function runTurn(
 
   if (!sawDone) issues.push("stream ended without a done event");
   if (answer.trim() === "") issues.push("empty answer");
-  if (/<\/?think>/i.test(answer)) issues.push("think-block leaked into answer");
+  // Matches <think>, <thinking>, <redacted_thinking>, etc. — reasoning models
+  // vary the tag name across versions/templates, and any of them leaking
+  // past the server-side filter is the same failure.
+  if (/<\/?[a-z_]*think[a-z_]*>/i.test(answer)) issues.push("think-block leaked into answer");
   if (citations.length === 0) issues.push("no citations returned");
 
   const msTotal = since();
